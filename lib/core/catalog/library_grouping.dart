@@ -173,13 +173,20 @@ List<Track> tracksForAlbum(List<Track> tracks, String albumId) {
 
 /// Tracks by the artist [artistId], grouped by album then album order, so an
 /// artist's catalog reads album-by-album.
+///
+/// Albums order by title, and two different albums that share a title (a
+/// band's self-titled records) are kept apart by their grouping key
+/// ([albumIdForTrack]) so one plays end to end before the other starts, rather
+/// than interleaving track by track (#883). The key is computed once per track
+/// up front instead of inside the comparator, since this list also backs the
+/// Android Auto artist node.
 List<Track> tracksForArtist(List<Track> tracks, String artistId) {
-  final List<Track> result = <Track>[
+  final List<(Track, String)> keyed = <(Track, String)>[
     for (final Track t in tracks)
-      if (artistIdForTrack(t) == artistId) t,
+      if (artistIdForTrack(t) == artistId) (t, albumIdForTrack(t)),
   ];
-  result.sort(_trackForArtistCompare);
-  return result;
+  keyed.sort(_trackForArtistCompare);
+  return <Track>[for (final (Track, String) entry in keyed) entry.$1];
 }
 
 /// Albums by the artist [artistId], sorted like [groupAlbums].
@@ -226,11 +233,15 @@ int _byNumbering(int? a, int? b) {
   return 0;
 }
 
-int _trackForArtistCompare(Track a, Track b) {
+/// Orders an artist's `(track, album key)` pairs: album title, then album key
+/// (so same-titled albums stay apart), then album order.
+int _trackForArtistCompare((Track, String) a, (Track, String) b) {
   final int byAlbum =
-      foldText(a.albumName ?? '').compareTo(foldText(b.albumName ?? ''));
+      foldText(a.$1.albumName ?? '').compareTo(foldText(b.$1.albumName ?? ''));
   if (byAlbum != 0) return byAlbum;
-  return _trackInAlbumCompare(a, b);
+  final int byAlbumKey = a.$2.compareTo(b.$2);
+  if (byAlbumKey != 0) return byAlbumKey;
+  return _trackInAlbumCompare(a.$1, b.$1);
 }
 
 /// Accumulates one album's display fields as its tracks are seen. The first

@@ -611,6 +611,75 @@ void main() {
     });
   });
 
+  group('artist track order', () {
+    /// Two different albums with the same title by the same artist, as a
+    /// server reports them: distinct album ids, track numbers each from 1.
+    List<Track> twoSelfTitled() => <Track>[
+          _jelly('b2',
+              title: 'B2',
+              artist: 'Weezer',
+              album: 'Weezer',
+              albumId: 'green',
+              trackNumber: 2),
+          _jelly('a1',
+              title: 'A1',
+              artist: 'Weezer',
+              album: 'Weezer',
+              albumId: 'blue',
+              trackNumber: 1),
+          _jelly('b1',
+              title: 'B1',
+              artist: 'Weezer',
+              album: 'Weezer',
+              albumId: 'green',
+              trackNumber: 1),
+          _jelly('a2',
+              title: 'A2',
+              artist: 'Weezer',
+              album: 'Weezer',
+              albumId: 'blue',
+              trackNumber: 2),
+        ];
+
+    test('same-titled albums play one after the other, not interleaved (#883)',
+        () {
+      final List<Track> all = twoSelfTitled();
+      final String artistId = artistIdForTrack(all.first);
+
+      final List<String> order =
+          tracksForArtist(all, artistId).map((Track t) => t.title).toList();
+
+      // Which album comes first is an arbitrary but stable choice; what matters
+      // is that each album's tracks are contiguous and in track order.
+      expect(
+        order,
+        anyOf(
+          equals(<String>['A1', 'A2', 'B1', 'B2']),
+          equals(<String>['B1', 'B2', 'A1', 'A2']),
+        ),
+      );
+      expect(
+        tracksForArtist(all.reversed.toList(), artistId)
+            .map((Track t) => t.title),
+        order,
+      );
+    });
+
+    test('albums with different titles still order by title', () {
+      final List<Track> all = <Track>[
+        _jelly('z1', title: 'Z1', artist: 'A', album: 'Zebra', trackNumber: 1),
+        _jelly('a2', title: 'A2', artist: 'A', album: 'apple', trackNumber: 2),
+        _jelly('a1', title: 'A1', artist: 'A', album: 'Apple', trackNumber: 1),
+      ];
+      final String artistId = artistIdForTrack(all.first);
+
+      expect(
+        tracksForArtist(all, artistId).map((Track t) => t.title),
+        <String>['A1', 'A2', 'Z1'],
+      );
+    });
+  });
+
   group('multi-disc album order', () {
     /// A two-disc release as a server reports one: track numbers restart at 1
     /// on the second disc, which is exactly what makes ordering by number alone
